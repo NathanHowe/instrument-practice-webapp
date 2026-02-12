@@ -10,6 +10,8 @@ import TunerPage from "./pages/TunerPage";
 import SightReadingPage from "./pages/SightReadingPage";
 import MyMusicPage from "./pages/MyMusicPage";
 import SettingsPage from "./pages/SettingsPage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 
 function App() {
 
@@ -23,17 +25,33 @@ function App() {
   const toggleTheme = () => {
     setTheme(prev => (prev === "light" ? "dark" : "light"));
   };
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsLoggedIn(false);
+  };
  
   return (
 
     
     <BrowserRouter>
-      <NavBar theme={theme} toggleTheme={toggleTheme} />
+      <NavBar theme={theme} toggleTheme={toggleTheme} isLoggedIn={isLoggedIn} onLogout={handleLogout} />
 
 
       <div className="container mt-4">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/home" element={<Home />} />
           <Route path="/metronome" element={<MetronomePage />} />
           <Route path="/tuner" element={<TunerPage />} />
           <Route path="/sight-reading" element={<SightReadingPage />} />

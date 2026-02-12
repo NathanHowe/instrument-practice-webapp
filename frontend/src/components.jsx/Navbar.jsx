@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-const NavBar = ({ theme, toggleTheme }) => {
+const NavBar = ({ theme, toggleTheme, isLoggedIn, onLogout }) => {
     return (
         <nav className="navbar fixed-top navbar-expand-lg bg-body-tertiary">
             <div className="container-fluid">
@@ -18,9 +18,10 @@ const NavBar = ({ theme, toggleTheme }) => {
                     <span className="navbar-toggler-icon"></span>
                 </button>
 
-                <div className="collapse navbar-collapse" id="navbarNav">
-                    <ul className="navbar-nav me-auto">
+               
 
+                <div className="collapse navbar-collapse" id="navbarNav">             
+                    <ul className="navbar-nav me-auto">
                         <li className="nav-item">
                             <Link className="nav-link" to="/metronome">
                                 Metronome
@@ -34,23 +35,38 @@ const NavBar = ({ theme, toggleTheme }) => {
                         </li>
 
                         <li className="nav-item">
-                            <Link className="nav-link" to="/my-music">
-                                My Music
-                            </Link>
-                        </li>
-
-                        <li className="nav-item">
                             <Link className="nav-link" to="/sight-reading">
                                 Sight Reading
                             </Link>
                         </li>
 
-                        <li className="nav-item">
-                            <Link className="nav-link" to="/settings">
-                                Settings
-                            </Link>
-                        </li>
-
+                        {!isLoggedIn && (
+                            <>
+                                <li className="nav-item">
+                                    <Link className="nav-link" to="/">Login</Link>
+                                </li>
+                                <li className="nav-item">
+                                    <Link className="nav-link" to="/signup">Sign Up</Link>
+                                </li>
+                            </>
+                        )}
+                        {isLoggedIn && (
+                            <>
+                                <li className="nav-item">
+                                    <Link className="nav-link" to="/my-music">My Music</Link>
+                                </li>
+                                <li className="nav-item">
+                                    <Link className="nav-link" to="/settings">
+                                        Settings
+                                    </Link>
+                                </li>
+                                <li className="nav-item">
+                                    <button className="btn btn-link nav-link" onClick={onLogout}>
+                                        Logout
+                                    </button>
+                                </li>
+                            </>
+                        )}
 
                     </ul>
 
