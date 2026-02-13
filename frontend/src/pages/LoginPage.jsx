@@ -19,7 +19,7 @@ function LoginPage() {
 
         if (response.ok) {
             localStorage.setItem("token", data.access_token);
-            alert("Login successful!");
+            //alert("Login successful!");
             window.location.href = "/my-music";
         } else {
             alert(data.msg || "Login failed");
