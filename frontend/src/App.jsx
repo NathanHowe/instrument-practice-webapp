@@ -12,6 +12,8 @@ import MyMusicPage from "./pages/MyMusicPage";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import SongPage from "./pages/SongPage";
+import CreateSongPage from "./pages/CreateSongPage";
 
 function App() {
 
@@ -57,6 +59,8 @@ function App() {
           <Route path="/sight-reading" element={<SightReadingPage />} />
           <Route path="/my-music" element={<MyMusicPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/songs/:id" element={<SongPage />} />
+          <Route path="/create-song" element={<CreateSongPage />} />
         </Routes>
       </div>
     </BrowserRouter>

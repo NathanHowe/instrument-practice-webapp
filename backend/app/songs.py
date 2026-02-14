@@ -42,3 +42,22 @@ def get_songs():
     ]
 
     return jsonify(result), 200
+
+@songs_bp.route("/<int:song_id>", methods=["GET"])
+@jwt_required()
+def get_song(song_id):
+    user_id = get_jwt_identity()
+
+    song = Song.query.filter_by(
+        id=song_id,
+        user_id=user_id
+    ).first()
+
+    if not song:
+        return jsonify({"msg": "Song not found"}), 404
+
+    return jsonify({
+        "id": song.id,
+        "title": song.title,
+        "content": song.content
+    }), 200

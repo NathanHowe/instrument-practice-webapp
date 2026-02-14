@@ -66,3 +66,22 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+.song-card {
+  transition: transform 0.2s ease,
+    box-shadow 0.2s ease;
+  border: none;
+}
+
+.song-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.song-card-img {
+  transition: transform 0.3s ease;
+}
+
+.song-card:hover .song-card-img {
+  transform: scale(1.05);
+}
