@@ -2,36 +2,31 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function CreateSongPage() {
-    const [title, setTitle] = useState("");
     const navigate = useNavigate();
+    const [file, setFile] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         const token = localStorage.getItem("token");
 
+        const formData = new FormData();
+        formData.append("file", file);
+
         const response = await fetch(
             "http://127.0.0.1:5000/api/songs/",
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    title: title,
-                    content: {
-                        tempo: 120,
-                        measures: [],
-                    },
-                }),
+                body: formData,
             }
         );
 
         const data = await response.json();
 
         if (response.ok) {
-            // redirect to newly created song
             navigate(`/songs/${data.song.id}`);
         } else {
             alert("Failed to create song");
@@ -43,16 +38,15 @@ function CreateSongPage() {
             <h2>Create New Song</h2>
 
             <form onSubmit={handleSubmit}>
+
                 <div className="mb-3">
-                    <label className="form-label">
-                        Song Title
-                    </label>
+                    <label className="form-label">Upload Sheet Music (.mxl)</label>
 
                     <input
-                        type="text"
+                        type="file"
                         className="form-control"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
+                        accept=".mxl,.musicxml,.xml"
+                        onChange={(e) => setFile(e.target.files[0])}
                         required
                     />
                 </div>

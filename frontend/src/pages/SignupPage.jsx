@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function SignupPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -19,6 +21,7 @@ function SignupPage() {
 
         if (response.ok) {
             alert("Account created! Please login.");
+            navigate("/");
         } else {
             alert(data.msg || "Signup failed");
         }

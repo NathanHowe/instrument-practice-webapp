@@ -85,3 +85,11 @@ button:focus-visible {
 .song-card:hover .song-card-img {
   transform: scale(1.05);
 }
+
+.osmd-container svg {
+  width: 100vw !important;
+}
+
+/* .container-fluid {
+  width: 100%;
+} */
