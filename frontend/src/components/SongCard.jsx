@@ -1,25 +1,43 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { parseMusicXML } from "../utils/musicXmlParser";
 import { generateThumbnail } from "../utils/generateThumbnail";
+import {getCachedThumbnail, saveThumbnail} from "../utils/thumbnailCache";
 
 function SongCard({ song }) {
     const navigate = useNavigate();
-
-    const [title, setTitle] = useState("Untitled");
     const [thumbnail, setThumbnail] = useState(null);
+    const [title, setTitle] = useState("Untitled");
+    
 
     useEffect(() => {
         if (!song?.content) return;
 
-        // title
-        const meta = parseMusicXML(song.content);
-        setTitle(meta.title);
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(
+            song.content,
+            "text/xml"
+        );
 
-        // thumbnail
+        const workTitle =
+            xmlDoc.querySelector("work-title")?.textContent ||
+            xmlDoc.querySelector("movement-title")?.textContent;
+
+        if (workTitle) setTitle(workTitle);
+
+        const cached = getCachedThumbnail(song.id);
+
+        if (cached) {
+            setThumbnail(cached);
+            return;
+        }
+
         generateThumbnail(song.content).then((img) => {
-            if (img) setThumbnail(img);
+            if (!img) return;
+
+            saveThumbnail(song.id, img);
+            setThumbnail(img);
         });
+
     }, [song]);
 
     return (

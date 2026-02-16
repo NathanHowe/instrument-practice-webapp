@@ -90,6 +90,14 @@ button:focus-visible {
   width: 100vw !important;
 }
 
-/* .container-fluid {
-  width: 100%;
-} */
+.score-container {
+  background: white;
+  padding: 10px;
+  border-radius: 20px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
+}
+
+.song-card-img {
+  background-color: white;
+  object-fit: cover;
+}

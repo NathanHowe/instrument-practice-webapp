@@ -40,7 +40,7 @@ function SongPage() {
 
         osmd.load(song.content)
             .then(() => {
-                // prevent excessive vertical wrapping
+
                 osmd.EngravingRules.SoftMaxMeasureWidth = 1200;
 
                 osmd.zoom = 0.75;
@@ -54,7 +54,7 @@ function SongPage() {
 
     return (
         <div className="container-fluid mt-4">
-            <div
+            <div className="score-container"
                 ref={containerRef}
                 style={{
                     width: "min(1200px, 90vw)",

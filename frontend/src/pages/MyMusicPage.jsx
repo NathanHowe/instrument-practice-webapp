@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import SongCard from "../components.jsx/SongCard";
+import SongCard from "../components/SongCard";
 import { useNavigate } from "react-router-dom";
 
 function MyMusicPage() {
