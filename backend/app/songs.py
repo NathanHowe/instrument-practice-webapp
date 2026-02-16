@@ -18,7 +18,6 @@ def add_song():
 
     filename = uploaded_file.filename.lower()
 
-    # --- Handle MXL ---
     if filename.endswith(".mxl"):
         zip_data = io.BytesIO(uploaded_file.read())
         with zipfile.ZipFile(zip_data) as z:
@@ -28,7 +27,6 @@ def add_song():
             )
             content = z.read(musicxml_name).decode("utf-8")
 
-    # --- Handle raw XML ---
     elif filename.endswith(".xml") or filename.endswith(".musicxml"):
         content = uploaded_file.read().decode("utf-8")
 

@@ -1,8 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useNotification } from "../context/NotificationContext";
 
 function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const navigate = useNavigate();
+    const { notify } = useNotification();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -19,10 +23,10 @@ function LoginPage() {
 
         if (response.ok) {
             localStorage.setItem("token", data.access_token);
-            //alert("Login successful!");
-            window.location.href = "/my-music";
+            notify("Login successful!", "success");
+            navigate("/my-music");
         } else {
-            alert(data.msg || "Login failed");
+            notify(data.msg || "Login failed", "danger");
         }
     };
 
