@@ -101,3 +101,55 @@ button:focus-visible {
   background-color: white;
   object-fit: cover;
 }
+
+.subdivision-box {
+  width: 70px;
+  height: 70px;
+  border: 2px solid var(--bs-border-color);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.subdivision-box:hover {
+  transform: scale(1.05);
+}
+
+.subdivision-box.active {
+  background: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+}
+
+.sub-box {
+  width: 70px;
+  height: 70px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+
+  font-size: 28px;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: all 0.15s ease;
+}
+
+.sub-box:hover {
+  border-color: var(--bs-secondary);
+}
+
+.sub-box.active {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 10px rgba(13, 110, 253, 0.35);
+  transform: scale(1.06);
+}

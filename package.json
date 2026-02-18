@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "react-router-dom": "^7.13.0"
+  },
+  "devDependencies": {
+    "@svgr/webpack": "^8.1.0"
   }
 }
