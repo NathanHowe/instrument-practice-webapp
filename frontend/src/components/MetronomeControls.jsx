@@ -1,7 +1,7 @@
-// import { ReactComponent as QuarterNote } from "../assets/react.svg";
-// import { ReactComponent as EighthNotes } from "../assets/eighth_notes.svg";
-// import { ReactComponent as Triplet } from "../assets/triplet.svg";
-// import { ReactComponent as SixteenthNotes } from "../assets/sixteenth_notes.svg";
+import QuarterNote  from "../assets/quarter_note.svg?react";
+import EighthNotes from "../assets/eighth_notes.svg?react";
+import Triplet from "../assets/triplet_notes.svg?react";
+import SixteenthNotes from "../assets/sixteenth_notes.svg?react";
 
 export default function MetronomeControls({
     bpm,
@@ -25,33 +25,34 @@ export default function MetronomeControls({
 
             <div className="d-flex justify-content-center gap-3 mt-3">
 
-                <button
+                <button 
                     className={`sub-box ${subdivision === "quarter" ? "active" : ""}`}
                     onClick={() => setSubdivision("quarter")}
                 >
-                    {/* TODO: Fix Icon */}
-                    .
+
+                    <QuarterNote className="note-icon" />
+
                 </button>
 
                 <button
                     className={`sub-box ${subdivision === "eighth" ? "active" : ""}`}
                     onClick={() => setSubdivision("eighth")}
                 >
-                    .
+                    <EighthNotes className="note-icon" />
                 </button>
 
                 <button
                     className={`sub-box ${subdivision === "triplet" ? "active" : ""}`}
                     onClick={() => setSubdivision("triplet")}
                 >
-                    .
+                    <Triplet className="note-icon" />
                 </button>
 
                 <button
                     className={`sub-box ${subdivision === "sixteenth" ? "active" : ""}`}
                     onClick={() => setSubdivision("sixteenth")}
                 >
-                    .
+                    <SixteenthNotes className="note-icon" />
                 </button>
 
             </div>
