@@ -1,31 +1,56 @@
 const A4 = 440;
 
-const NOTE_NAMES = [
-    "C", "C#", "D", "D#", "E", "F",
-    "F#", "G", "G#", "A", "A#", "B"
-];
+const SHARP_NAMES =
+    ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-export function freqToNote(freq) {
-    if (!freq) return null;
+const FLAT_NAMES =
+    ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
-    const noteNumber =
-        12 * Math.log2(freq / A4) + 69;
+// export function freqToNote(freq) {
+//     if (!freq) return null;
 
-    const rounded = Math.round(noteNumber);
+//     const noteNumber =
+//         12 * Math.log2(freq / A4) + 69;
 
-    const name = NOTE_NAMES[rounded % 12];
-    const octave = Math.floor(rounded / 12) - 1;
+//     const rounded = Math.round(noteNumber);
 
-    const perfectFreq =
-        A4 * Math.pow(2, (rounded - 69) / 12);
+//     const name = NOTE_NAMES[rounded % 12];
+//     const octave = Math.floor(rounded / 12) - 1;
 
-    const cents =
-        1200 * Math.log2(freq / perfectFreq);
+//     const perfectFreq =
+//         A4 * Math.pow(2, (rounded - 69) / 12);
+
+//     const cents =
+//         1200 * Math.log2(freq / perfectFreq);
+
+//     return {
+//         name,
+//         octave,
+//         cents,
+//         frequency: freq
+//     };
+// }
+export function freqToMidi(freq) {
+    return Math.round(69 + 12 * Math.log2(freq / 440));
+}
+
+export function transposeNote(note, semitones) {
+    if (!note) return null;
+
+    const midi = note.midi + semitones;
 
     return {
-        name,
-        octave,
-        cents,
-        frequency: freq
+        ...note,
+        midi
+    };
+}
+
+export function midiToNote(midi, preferFlats = false) {
+    const names = preferFlats ? FLAT_NAMES : SHARP_NAMES;
+
+    return {
+        name: names[midi % 12],
+        octave: Math.floor(midi / 12) - 1,
+        midi
     };
 }

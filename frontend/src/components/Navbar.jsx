@@ -40,6 +40,24 @@ const NavBar = ({ theme, toggleTheme, isLoggedIn, onLogout }) => {
                             </Link>
                         </li>
 
+
+                        {isLoggedIn && (
+                            <>
+                                <li className="nav-item">
+                                    <Link className="nav-link" to="/my-music">My Music</Link>
+                                </li>
+                                <li className="nav-item">
+                                    <button className="btn btn-link nav-link" onClick={onLogout}>
+                                        Logout
+                                    </button>
+                                </li>
+                            </>
+                        )}
+                        <li className="nav-item">
+                            <Link className="nav-link" to="/settings">
+                                Settings
+                            </Link>
+                        </li>
                         {!isLoggedIn && (
                             <>
                                 <li className="nav-item">
@@ -47,23 +65,6 @@ const NavBar = ({ theme, toggleTheme, isLoggedIn, onLogout }) => {
                                 </li>
                                 <li className="nav-item">
                                     <Link className="nav-link" to="/signup">Sign Up</Link>
-                                </li>
-                            </>
-                        )}
-                        {isLoggedIn && (
-                            <>
-                                <li className="nav-item">
-                                    <Link className="nav-link" to="/my-music">My Music</Link>
-                                </li>
-                                <li className="nav-item">
-                                    <Link className="nav-link" to="/settings">
-                                        Settings
-                                    </Link>
-                                </li>
-                                <li className="nav-item">
-                                    <button className="btn btn-link nav-link" onClick={onLogout}>
-                                        Logout
-                                    </button>
                                 </li>
                             </>
                         )}
