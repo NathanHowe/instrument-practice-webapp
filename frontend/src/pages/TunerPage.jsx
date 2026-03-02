@@ -16,11 +16,9 @@ export default function TunerPage() {
   });
 
 
-  // ---------- MIDI ----------
   const concertMidi =
     frequency ? freqToMidi(frequency) : null;
 
-  // ---------- NOTE NAMES ----------
   const concertNote =
     concertMidi !== null
       ? midiToNote(concertMidi, preferFlats)
@@ -31,7 +29,6 @@ export default function TunerPage() {
       ? midiToNote(concertMidi + transposition, preferFlats)
       : null;
 
-  // ---------- CENTS CALCULATION ----------
   let cents = null;
 
   if (concertMidi !== null && frequency) {
@@ -49,8 +46,7 @@ export default function TunerPage() {
     <div className="text-center mt-5">
       <h1>Tuner</h1>
 
-      <StaffDisplay midi={writtenNote ? writtenNote.midi : null} />
-      {/* Concert pitch */}
+      <StaffDisplay note={writtenNote ? writtenNote : null} />
       <h2>
         Concert:{" "}
         {concertNote
@@ -58,7 +54,6 @@ export default function TunerPage() {
           : "--"}
       </h2>
 
-      {/* Written pitch */}
       <h2>
         Written:{" "}
         {writtenNote
@@ -66,7 +61,6 @@ export default function TunerPage() {
           : "--"}
       </h2>
 
-      {/* Frequency */}
       <p>
         {frequency
           ? `${frequency.toFixed(2)} Hz`
