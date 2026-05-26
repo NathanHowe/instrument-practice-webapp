@@ -51,7 +51,10 @@ function App() {
 
       <div className="container mt-4">
         <Routes>
-          <Route path="/" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={<LoginPage setIsLoggedIn={setIsLoggedIn} />}
+          />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/home" element={<Home />} />
           <Route path="/metronome" element={<MetronomePage />} />

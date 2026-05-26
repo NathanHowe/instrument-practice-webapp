@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../context/NotificationContext";
 
-function LoginPage() {
+function LoginPage({ setIsLoggedIn }) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
@@ -23,6 +23,7 @@ function LoginPage() {
 
         if (response.ok) {
             localStorage.setItem("token", data.access_token);
+            setIsLoggedIn(true);
             notify("Login successful!", "success");
             navigate("/my-music");
         } else {
