@@ -46,7 +46,7 @@ export default function TunerPage() {
     <div className="text-center mt-5">
       <h1>Tuner</h1>
 
-      <StaffDisplay note={writtenNote ? writtenNote : null} />
+      <StaffDisplay note={writtenNote || null} />
       <h2>
         Concert:{" "}
         {concertNote

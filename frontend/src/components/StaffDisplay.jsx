@@ -1,125 +1,56 @@
-import { useState, useEffect } from "react";
-
-import TrebleStaff from "../assets/treble_clef.svg?react";
-import BassStaff from "../assets/bass_clef.svg?react";
-import NoteHead from "../assets/quarter_note.svg?react";
-import Sharp from "../assets/sharp.svg?react";
-import Flat from "../assets/flat.svg?react";
-
-import { getStaffInfo, STAFF_LIMITS } from "../utils/staffMap";
+import { useEffect, useRef } from "react";
+import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
+import { generateMusicXML } from "../utils/generateMusicXML";
 
 export default function StaffDisplay({ note }) {
-
-    const staffInfo = getStaffInfo(note);
-
-    const [lastClef, setLastClef] = useState("treble");
+    const containerRef = useRef(null);
+    const osmdRef = useRef(null);
 
     useEffect(() => {
-        if (staffInfo) setLastClef(staffInfo.clef);
-    }, [staffInfo]);
+        if (!containerRef.current) return;
 
-    const clef = staffInfo?.clef ?? lastClef;
-    const useBass = clef === "bass";
+        // Create OSMD once
+        if (!osmdRef.current) {
+            osmdRef.current = new OpenSheetMusicDisplay(
+                containerRef.current,
+                {
+                    autoResize: true,
+                    drawTitle: false,
+                    drawPartNames: false,
+                    // renderSingleHorizontalStaffline: true,
+                    // drawingParameters: "compacttight",
+                    stretchLastSystemLine: true,
+                }
+            );
 
-    const STEP_HEIGHT = 12;
-    const CENTER_Y = 72;      // B4 anchor
+            osmdRef.current.Zoom = 1.6;
+        }
 
-    const y =
-        staffInfo
-            ? CENTER_Y - staffInfo.steps * STEP_HEIGHT
-            : CENTER_Y;
+        const xml = generateMusicXML(note); // note can be null
 
-    const ledgerLines = [];
+        let cancelled = false;
 
-    if (staffInfo) {
-        const steps = staffInfo.steps;
-
-        const TOP_LINE = 4;
-        const BOTTOM_LINE = -4;
-
-        if (steps > TOP_LINE) {
-
-            let start =
-                (TOP_LINE % 2 === 0)
-                    ? TOP_LINE + 2
-                    : TOP_LINE + 1;
-
-            for (let s = start; s <= steps; s += 2) {
-                ledgerLines.push(
-                    CENTER_Y - s * STEP_HEIGHT + 13
-                );
+        async function render() {
+            try {
+                await osmdRef.current.load(xml);
+                if (!cancelled) {
+                    osmdRef.current.render();
+                }
+            } catch (err) {
+                console.error("OSMD render error:", err);
             }
         }
 
-        if (steps < BOTTOM_LINE) {
+        render();
 
-            let start =
-                (BOTTOM_LINE % 2 === 0)
-                    ? BOTTOM_LINE - 2
-                    : BOTTOM_LINE - 1;
-
-            for (let s = start; s >= steps; s -= 2) {
-                ledgerLines.push(
-                    CENTER_Y - s * STEP_HEIGHT + STEP_HEIGHT / 2
-                );
-            }
-        }
-    }
+        return () => {
+            cancelled = true;
+        };
+    }, [note]);
 
     return (
-        <div className="score-container">
-            <div className="staff-wrapper">
-
-                {useBass
-                    ? <BassStaff className="staff-svg" />
-                    : <TrebleStaff className="staff-svg" />
-                }
-
-                {note && ledgerLines.map((ly, i) => (
-                    <div
-                        key={i}
-                        className="ledger-line"
-                        style={{ top: `${ly}px` }}
-                    />
-                ))}
-
-                {note && (
-                    <>
-                        <NoteHead
-                            className="note-head"
-                            style={{
-                                position: "absolute",
-                                top: `${y}px`,
-                                left: "50%",
-                                transform: "translate(-50%, -50%)"
-                            }}
-                        />
-
-                        {staffInfo.accidental === "sharp" && (
-                            <Sharp
-                                style={{
-                                    position: "absolute",
-                                    top: `${y}px`,
-                                    left: "42%",
-                                    transform: "translate(-50%, -50%)"
-                                }}
-                            />
-                        )}
-
-                        {staffInfo.accidental === "flat" && (
-                            <Flat
-                                style={{
-                                    position: "absolute",
-                                    top: `${y}px`,
-                                    left: "42%",
-                                    transform: "translate(-50%, -50%)"
-                                }}
-                            />
-                        )}
-                    </>
-                )}
-
-            </div>
+        <div className="staff-container">
+            <div ref={containerRef} />
         </div>
     );
 }
