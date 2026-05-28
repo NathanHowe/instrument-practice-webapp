@@ -36,6 +36,7 @@ function SongPage() {
             backend: "svg",
             drawingParameters: "default",
             stretchLastSystemLine: true,
+            noteheadScaling: 1.2,
         });
 
         osmd.load(song.content)

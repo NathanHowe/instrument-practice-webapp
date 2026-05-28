@@ -1,27 +1,39 @@
 import { useSettings } from "../context/SettingsContext";
+import { instruments } from "../utils/instruments";
 
 export default function SettingsPage() {
 
   const {
-    transposition,
-    setTransposition,
+    instrument,
+    setInstrument,
   } = useSettings();
 
   return (
     <div className="container mt-5">
       <h1>Settings</h1>
 
-      {/* Transposition */}
       <div className="mt-4">
-        <label className="form-label">Instrument</label>
+        <label className="form-label">
+          Instrument
+        </label>
+
         <select
           className="form-select"
-          value={transposition}
-          onChange={(e) => setTransposition(Number(e.target.value))}
+          value={instrument}
+          onChange={(e) =>
+            setInstrument(e.target.value)
+          }
         >
-          <option value={0}>Concert (C)</option>
-          <option value={2}>Bb Instrument</option>
-          <option value={9}>Eb Instrument</option>
+          {Object.entries(instruments).map(
+            ([key, inst]) => (
+              <option
+                key={key}
+                value={key}
+              >
+                {inst.name}
+              </option>
+            )
+          )}
         </select>
       </div>
     </div>

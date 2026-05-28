@@ -9,7 +9,12 @@ export default function TunerPage() {
   const { audioContext, source, ready } = useMicrophone();
   const frequency = usePitchDetector(audioContext, source);
 
-  const { transposition } = useSettings();
+  const {
+    transposition,
+    clef,
+    minMidi,
+    maxMidi,
+  } = useSettings();
 
   const [preferFlats, setPreferFlats] = useState(() => {
     return localStorage.getItem("preferFlats") === "true";
@@ -19,21 +24,30 @@ export default function TunerPage() {
   const concertMidi =
     frequency ? freqToMidi(frequency) : null;
 
-  const concertNote =
-    concertMidi !== null
-      ? midiToNote(concertMidi, preferFlats)
+  const clampedMidi =
+    concertMidi !== null &&
+      concertMidi >= minMidi &&
+      concertMidi <= maxMidi
+      ? concertMidi
       : null;
 
+  const concertNote =
+    clampedMidi !== null
+      ? midiToNote(clampedMidi, preferFlats)
+      : null;
+
+
+
   const writtenNote =
-    concertMidi !== null
-      ? midiToNote(concertMidi + transposition, preferFlats)
+    clampedMidi !== null
+      ? midiToNote(clampedMidi + transposition, preferFlats)
       : null;
 
   let cents = null;
 
-  if (concertMidi !== null && frequency) {
+  if (clampedMidi !== null && frequency) {
     const nearestFreq =
-      440 * Math.pow(2, (concertMidi - 69) / 12);
+      440 * Math.pow(2, (clampedMidi - 69) / 12);
 
     cents =
       1200 *
@@ -46,7 +60,7 @@ export default function TunerPage() {
     <div className="text-center mt-5">
       <h1>Tuner</h1>
 
-      <StaffDisplay note={writtenNote || null} />
+      <StaffDisplay note={writtenNote || null} clef={clef} />
       <h2>
         Concert:{" "}
         {concertNote
