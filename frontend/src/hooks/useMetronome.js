@@ -199,9 +199,9 @@ export default function useMetronome() {
         startTimeRef.current =
             audioCtxRef.current.currentTime;
 
-        playClick(
-            audioCtxRef.current.currentTime
-        );
+        // playClick(
+        //     audioCtxRef.current.currentTime
+        // );
 
         setCountInBeat(0);
 
@@ -210,6 +210,8 @@ export default function useMetronome() {
         isPlayingRef.current = true;
 
         setIsPlaying(true);
+
+        scheduleNotes();
 
         timerRef.current =
             setInterval(
