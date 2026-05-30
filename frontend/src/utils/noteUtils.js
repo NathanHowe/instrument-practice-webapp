@@ -6,30 +6,6 @@ const SHARP_NAMES =
 const FLAT_NAMES =
     ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
-// export function freqToNote(freq) {
-//     if (!freq) return null;
-
-//     const noteNumber =
-//         12 * Math.log2(freq / A4) + 69;
-
-//     const rounded = Math.round(noteNumber);
-
-//     const name = NOTE_NAMES[rounded % 12];
-//     const octave = Math.floor(rounded / 12) - 1;
-
-//     const perfectFreq =
-//         A4 * Math.pow(2, (rounded - 69) / 12);
-
-//     const cents =
-//         1200 * Math.log2(freq / perfectFreq);
-
-//     return {
-//         name,
-//         octave,
-//         cents,
-//         frequency: freq
-//     };
-// }
 export function freqToMidi(freq) {
     return Math.round(69 + 12 * Math.log2(freq / 440));
 }
@@ -53,4 +29,34 @@ export function midiToNote(midi, preferFlats = false) {
         octave: Math.floor(midi / 12) - 1,
         midi
     };
+}
+
+export function musicXmlNoteToMidi(note) {
+
+    if (
+        !note ||
+        note.isRest ||
+        note.step == null ||
+        note.octave == null
+    ) {
+        return null;
+    }
+
+    const stepOffsets = {
+        C: 0,
+        D: 2,
+        E: 4,
+        F: 5,
+        G: 7,
+        A: 9,
+        B: 11,
+    };
+
+    const alter = note.alter || 0;
+
+    return (
+        (note.octave + 1) * 12 +
+        stepOffsets[note.step] +
+        alter
+    );
 }

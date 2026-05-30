@@ -14,6 +14,18 @@ import { xml2js } from "xml-js";
 
 import useMetronome from "../hooks/useMetronome";
 
+import {
+    extractNotesFromParsedXML,
+} from "../utils/musicXmlParser";
+
+import useMicrophone from "../hooks/useMicrophone";
+import usePitchDetector from "../hooks/usePitchDetector";
+
+import {
+    freqToMidi,
+    musicXmlNoteToMidi,
+} from "../utils/noteUtils";
+
 function SongPage() {
 
     const { id } = useParams();
@@ -22,6 +34,20 @@ function SongPage() {
 
     const [song, setSong] = useState(null);
     const [notes, setNotes] = useState([]);
+
+    const [currentNoteIndex,
+        setCurrentNoteIndex] =
+        useState(0);
+
+    const [correctNotes,
+        setCorrectNotes] =
+        useState(0);
+
+    const noteMatchedRef =
+        useRef(false);
+
+    const lastDetectedMidiRef =
+        useRef(null);
 
     const {
         start,
@@ -35,29 +61,17 @@ function SongPage() {
         isCountingIn,
     } = useMetronome();
 
-    const getChild = (parent, name) => {
-        if (!parent?.elements) return null;
+    const {
+        audioContext,
+        source,
+        ready,
+    } = useMicrophone();
 
-        return parent.elements.find(
-            (el) =>
-                el.type === "element" &&
-                el.name === name
+    const frequency =
+        usePitchDetector(
+            audioContext,
+            source
         );
-    };
-
-    const getText = (element) => {
-        if (!element?.elements) return null;
-
-        const textNode =
-            element.elements.find(
-                (el) =>
-                    el.type === "text"
-            );
-
-        return textNode
-            ? textNode.text
-            : null;
-    };
 
     useEffect(() => {
 
@@ -115,177 +129,27 @@ function SongPage() {
                     parsed
                 );
 
-                const score =
-                    parsed.elements?.find(
-                        (el) =>
-                            el.type ===
-                            "element" &&
-                            el.name ===
-                            "score-partwise"
+                const extractedNotes =
+                    extractNotesFromParsedXML(
+                        parsed
                     );
 
-                if (!score) {
-                    console.error(
-                        "No score-partwise found"
-                    );
-                } else {
+                console.log(
+                    "Extracted notes:",
+                    extractedNotes
+                );
 
-                    const part =
-                        getChild(
-                            score,
-                            "part"
-                        );
+                console.log(
+                    "First 10 notes:",
+                    extractedNotes.slice(
+                        0,
+                        10
+                    )
+                );
 
-                    if (!part) {
-                        console.error(
-                            "No part found"
-                        );
-                    } else {
-
-                        const measures =
-                            part.elements?.filter(
-                                (el) =>
-                                    el.type ===
-                                    "element" &&
-                                    el.name ===
-                                    "measure"
-                            ) || [];
-
-                        console.log(
-                            "Measures:",
-                            measures.length
-                        );
-
-                        const extractedNotes =
-                            [];
-
-                        measures.forEach(
-                            (
-                                measure
-                            ) => {
-
-                                const noteElements =
-                                    measure.elements?.filter(
-                                        (
-                                            el
-                                        ) =>
-                                            el.type ===
-                                            "element" &&
-                                            el.name ===
-                                            "note"
-                                    ) ||
-                                    [];
-
-                                noteElements.forEach(
-                                    (
-                                        note
-                                    ) => {
-
-                                        const rest =
-                                            getChild(
-                                                note,
-                                                "rest"
-                                            );
-
-                                        if (
-                                            rest
-                                        ) {
-                                            extractedNotes.push(
-                                                {
-                                                    step: null,
-                                                    octave: null,
-                                                    alter: 0,
-                                                    isRest: true,
-                                                }
-                                            );
-
-                                            return;
-                                        }
-
-                                        const pitch =
-                                            getChild(
-                                                note,
-                                                "pitch"
-                                            );
-
-                                        if (
-                                            !pitch
-                                        ) {
-                                            return;
-                                        }
-
-                                        const stepElement =
-                                            getChild(
-                                                pitch,
-                                                "step"
-                                            );
-
-                                        const octaveElement =
-                                            getChild(
-                                                pitch,
-                                                "octave"
-                                            );
-
-                                        const alterElement =
-                                            getChild(
-                                                pitch,
-                                                "alter"
-                                            );
-
-                                        const step =
-                                            getText(
-                                                stepElement
-                                            );
-
-                                        const octave =
-                                            octaveElement
-                                                ? parseInt(
-                                                    getText(
-                                                        octaveElement
-                                                    )
-                                                )
-                                                : null;
-
-                                        const alter =
-                                            alterElement
-                                                ? parseInt(
-                                                    getText(
-                                                        alterElement
-                                                    )
-                                                )
-                                                : 0;
-
-                                        extractedNotes.push(
-                                            {
-                                                step,
-                                                octave,
-                                                alter,
-                                                isRest: false,
-                                            }
-                                        );
-                                    }
-                                );
-                            }
-                        );
-
-                        console.log(
-                            "Extracted notes:",
-                            extractedNotes
-                        );
-
-                        console.log(
-                            "First 10 notes:",
-                            extractedNotes.slice(
-                                0,
-                                10
-                            )
-                        );
-
-                        setNotes(
-                            extractedNotes
-                        );
-                    }
-                }
+                setNotes(
+                    extractedNotes
+                );
 
                 setSong(data);
 
@@ -351,6 +215,107 @@ function SongPage() {
 
     }, [song]);
 
+    useEffect(() => {
+
+        if (
+            !isPlaying ||
+            isCountingIn ||
+            !frequency ||
+            notes.length === 0
+        ) {
+            noteMatchedRef.current = false;
+            return;
+        }
+
+        let noteIndex =
+            currentNoteIndex;
+
+        while (
+            noteIndex < notes.length &&
+            notes[noteIndex].isRest
+        ) {
+
+            console.log(
+                "Skipping rest"
+            );
+
+            noteIndex++;
+        }
+
+        if (
+            noteIndex !== currentNoteIndex
+        ) {
+
+            setCurrentNoteIndex(
+                noteIndex
+            );
+
+            return;
+        }
+
+        const expectedNote =
+            notes[noteIndex];
+
+        if (!expectedNote) {
+            return;
+        }
+
+        const detectedMidi =
+            freqToMidi(frequency);
+
+        const expectedMidi =
+            musicXmlNoteToMidi(
+                expectedNote
+            );
+
+        if (expectedMidi == null) {
+            return;
+        }
+
+        const difference =
+            Math.abs(
+                detectedMidi -
+                expectedMidi
+            );
+
+        if (
+            difference <= 1 &&
+            !noteMatchedRef.current
+        ) {
+
+            console.log(
+                "Correct note!",
+                expectedNote
+            );
+
+            noteMatchedRef.current =
+                true;
+
+            setCorrectNotes(
+                prev => prev + 1
+            );
+
+            setCurrentNoteIndex(
+                prev => prev + 1
+            );
+        }
+
+        if (difference > 1) {
+            noteMatchedRef.current =
+                false;
+        }
+
+        lastDetectedMidiRef.current =
+            detectedMidi;
+
+    }, [
+        frequency,
+        currentNoteIndex,
+        notes,
+        isPlaying,
+        isCountingIn
+    ]);
+
     return (
         <div className="container-fluid mt-4">
 
@@ -406,6 +371,61 @@ function SongPage() {
                             PLAY
                         </h2>
                     )}
+
+            </div>
+
+            <div className="mt-3">
+
+                <p>
+                    Mic Ready:
+                    {" "}
+                    {ready ? "Yes" : "No"}
+                </p>
+
+                <p>
+                    Frequency:
+                    {" "}
+                    {
+                        frequency
+                            ? frequency.toFixed(1)
+                            : "---"
+                    }
+                    {" "}Hz
+                </p>
+
+                <p>
+                    Current Note:
+                    {" "}
+                    {currentNoteIndex + 1}
+                    {" / "}
+                    {notes.length}
+                </p>
+
+                <p>
+                    Correct Notes:
+                    {" "}
+                    {correctNotes}
+                </p>
+
+                {
+                    notes[currentNoteIndex] && (
+                        <p>
+                            Expected:
+                            {" "}
+                            {
+                                notes[currentNoteIndex]
+                                    .isRest
+                                    ? "Rest"
+                                    : `${notes[currentNoteIndex].step}${notes[currentNoteIndex].alter === 1
+                                        ? "#"
+                                        : notes[currentNoteIndex].alter === -1
+                                            ? "b"
+                                            : ""
+                                    }${notes[currentNoteIndex].octave}`
+                            }
+                        </p>
+                    )
+                }
 
             </div>
 
