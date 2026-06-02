@@ -4,8 +4,7 @@ from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from config import Config
-from flask_cors import CORS
-
+from datetime import timedelta
 
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -14,6 +13,9 @@ bcrypt = Bcrypt()
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.Config")
+
+    # Tokens expire after 7 days
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=7)
 
     CORS(app)
 

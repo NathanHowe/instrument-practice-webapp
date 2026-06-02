@@ -5,20 +5,22 @@ import { useNotification } from "../context/NotificationContext";
 function SignupPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-
     const navigate = useNavigate();
     const { notify } = useNotification();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        if (!email || !password) {
+            notify("Please enter your email and password.", "warning");
+            return;
+        }
+
         const response = await fetch(
             "http://127.0.0.1:5000/api/auth/register",
             {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             }
         );
@@ -27,20 +29,21 @@ function SignupPage() {
 
         if (response.ok) {
             notify("Account created! Please log in.", "success");
-            navigate("/");
+            navigate("/login");
         } else {
-            notify(data.msg || "Signup failed", "danger");
+            // Backend returns { message: "..." } — not data.msg
+            notify(data.message || "Signup failed", "danger");
         }
     };
 
     return (
-        <div className="container mt-5">
-            <h2>Sign Up</h2>
+        <div className="container mt-5" style={{ maxWidth: 400 }}>
+            <h2 className="mb-4">Sign Up</h2>
 
             <form onSubmit={handleSubmit}>
                 <div className="mb-3">
                     <input
-                        type="text"
+                        type="email"
                         className="form-control"
                         placeholder="Email"
                         value={email}
@@ -58,7 +61,7 @@ function SignupPage() {
                     />
                 </div>
 
-                <button type="submit" className="btn btn-success">
+                <button type="submit" className="btn btn-success w-100">
                     Sign Up
                 </button>
             </form>

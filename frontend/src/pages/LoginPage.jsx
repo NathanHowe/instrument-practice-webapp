@@ -1,21 +1,29 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useNotification } from "../context/NotificationContext";
 
 function LoginPage({ setIsLoggedIn }) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
+    const location = useLocation();
     const { notify } = useNotification();
+
+    // If the user was redirected here from a protected page, send them
+    // back there after login. Otherwise go to /my-music.
+    const from = location.state?.from?.pathname || "/my-music";
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        if (!email || !password) {
+            notify("Please enter your email and password.", "warning");
+            return;
+        }
+
         const response = await fetch("http://127.0.0.1:5000/api/auth/login", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
         });
 
@@ -25,22 +33,21 @@ function LoginPage({ setIsLoggedIn }) {
             localStorage.setItem("token", data.access_token);
             setIsLoggedIn(true);
             notify("Login successful!", "success");
-            navigate("/my-music");
+            navigate(from, { replace: true });
         } else {
-            notify(data.msg || "Login failed", "danger");
+            // Backend returns { message: "..." } — use that, not data.msg
+            notify(data.message || "Login failed", "danger");
         }
     };
 
-
-
     return (
-        <div className="container mt-5">
-            <h2>Login</h2>
+        <div className="container mt-5" style={{ maxWidth: 400 }}>
+            <h2 className="mb-4">Login</h2>
 
             <form onSubmit={handleSubmit}>
                 <div className="mb-3">
                     <input
-                        type="text"
+                        type="email"
                         className="form-control"
                         placeholder="Email"
                         value={email}
@@ -58,7 +65,7 @@ function LoginPage({ setIsLoggedIn }) {
                     />
                 </div>
 
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" className="btn btn-primary w-100">
                     Login
                 </button>
             </form>

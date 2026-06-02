@@ -9,11 +9,14 @@ auth_bp = Blueprint("auth", __name__)
 def register():
     data = request.get_json()
 
-    email = data.get("email")
-    password = data.get("password")
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"message": "Email and password are required"}), 400
 
     if User.query.filter_by(email=email).first():
-        return jsonify({"message": "User already exists"}), 400
+        return jsonify({"message": "An account with that email already exists"}), 400
 
     hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
 
@@ -23,18 +26,20 @@ def register():
 
     return jsonify({"message": "User created"}), 201
 
-
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
 
-    email = data.get("email")
-    password = data.get("password")
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"message": "Email and password are required"}), 400
 
     user = User.query.filter_by(email=email).first()
 
     if not user or not bcrypt.check_password_hash(user.password_hash, password):
-        return jsonify({"message": "Invalid credentials"}), 401
+        return jsonify({"message": "Invalid email or password"}), 401
 
     access_token = create_access_token(identity=str(user.id))
 

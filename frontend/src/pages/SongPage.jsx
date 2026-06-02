@@ -4,7 +4,7 @@ import {
     useState,
 } from "react";
 
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 import {
     OpenSheetMusicDisplay
@@ -26,11 +26,6 @@ import {
     musicXmlNoteToMidi,
 } from "../utils/noteUtils";
 
-// ---------------------------------------------------------------------------
-// Build a flat beat-timeline from the extracted notes.
-// Each entry: { noteIndex, startBeat, endBeat }
-// Rests are included so the beat clock stays aligned — we just don't judge them.
-// ---------------------------------------------------------------------------
 function buildBeatTimeline(notes) {
     let cursor = 0;
     return notes.map((note, i) => {
@@ -46,7 +41,6 @@ function buildBeatTimeline(notes) {
     });
 }
 
-// Given the current performance beat, find which timeline entry is "active"
 function findActiveEntry(timeline, beatIndex) {
     // The note whose window contains beatIndex
     for (let i = timeline.length - 1; i >= 0; i--) {
@@ -57,19 +51,12 @@ function findActiveEntry(timeline, beatIndex) {
     return timeline[0] ?? null;
 }
 
-// ---------------------------------------------------------------------------
-// Colour a notehead in the OSMD SVG by note index.
-// OSMD renders noteheads as <g class="vf-notehead"> elements in order.
-// We grab them all and index into the list.
-// ---------------------------------------------------------------------------
 function colorNotehead(containerEl, noteIndex, color) {
     if (!containerEl) return;
-    // VexFlow noteheads: each notehead group
     const heads = containerEl.querySelectorAll(
         "g.vf-notehead path, g.vf-notehead use"
     );
-    // OSMD may render one entry per notehead; for single-voice music this
-    // matches our noteIndex directly (rests also generate a glyph).
+ 
     if (heads[noteIndex]) {
         heads[noteIndex].style.fill = color;
         heads[noteIndex].style.stroke = color;
@@ -87,12 +74,10 @@ function clearAllNoteColors(containerEl) {
     });
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 function SongPage() {
 
     const { id } = useParams();
+    const navigate = useNavigate();
 
     const containerRef = useRef(null);
     const osmdRef = useRef(null);
@@ -100,23 +85,17 @@ function SongPage() {
     const [song, setSong] = useState(null);
     const [notes, setNotes] = useState([]);
 
-    // Beat-aligned timeline built from notes
     const timelineRef = useRef([]);
 
-    // Current active note index (for display)
     const [activeNoteIndex, setActiveNoteIndex] = useState(null);
 
-    // Score result counters
     const [correctNotes, setCorrectNotes] = useState(0);
     const [missedNotes, setMissedNotes] = useState(0);
 
-    // Best MIDI detected per note index during its window
     const bestMidiPerNoteRef = useRef(new Map());
 
-    // Track which note index was last judged so we don't double-judge
     const lastJudgedNoteIndexRef = useRef(-1);
 
-    // Track active note index as a ref too (for use inside frequency effect)
     const activeNoteIndexRef = useRef(null);
 
     const {
@@ -131,7 +110,6 @@ function SongPage() {
         getElapsedBeats,
     } = useMetronome();
 
-    // Stable ref to stop() so the beat callback closure never goes stale
     const stopRef = useRef(stop);
     useEffect(() => { stopRef.current = stop; }, [stop]);
 
@@ -143,11 +121,6 @@ function SongPage() {
 
     const frequency = usePitchDetector(audioContext, source);
 
-    // -----------------------------------------------------------------------
-    // Keep bestMidiPerNote updated from latest frequency reading.
-    // Each sample is stored against whichever note is currently active.
-    // We keep only the most recent reading per note (hook is already smoothed).
-    // -----------------------------------------------------------------------
     useEffect(() => {
         if (!isPlaying || isCountingIn || frequency == null) return;
 
@@ -160,9 +133,6 @@ function SongPage() {
 
     }, [frequency, isPlaying, isCountingIn]);
 
-    // -----------------------------------------------------------------------
-    // Wire the beat callback once the timeline and OSMD are ready
-    // -----------------------------------------------------------------------
     useEffect(() => {
 
         if (notes.length === 0) return;
@@ -177,16 +147,11 @@ function SongPage() {
 
             const { noteIndex } = entry;
 
-            // Update both state (for display) and ref (for frequency sampling)
             setActiveNoteIndex(noteIndex);
             activeNoteIndexRef.current = noteIndex;
 
-            // --- Judge ALL notes whose windows have closed since last beat ---
-            // This handles sub-beat notes (e.g. two quarter notes in one beat
-            // of cut time) that were skipped between beat ticks.
             const firstUnjudged = lastJudgedNoteIndexRef.current + 1;
 
-            // Judge everything up to but not including the note now playing
             for (let i = firstUnjudged; i < noteIndex; i++) {
                 const judgedNote = notes[i];
                 if (judgedNote.isRest) continue;
@@ -212,11 +177,9 @@ function SongPage() {
                 lastJudgedNoteIndexRef.current = noteIndex - 1;
             }
 
-            // --- End of song ---
-            // The last note's window has closed when beatIndex >= its endBeat.
             const lastEntry = timeline[timeline.length - 1];
             if (lastEntry && beatIndex >= lastEntry.endBeat) {
-                // Judge the final note if not yet judged
+
                 const lastIdx = lastEntry.noteIndex;
                 if (lastIdx > lastJudgedNoteIndexRef.current) {
                     const lastNote = notes[lastIdx];
@@ -249,7 +212,7 @@ function SongPage() {
                 stopRef.current();
             }
 
-        }; // end onBeatRef.current
+        };
 
         return () => {
             onBeatRef.current = null;
@@ -257,11 +220,6 @@ function SongPage() {
 
     }, [notes, onBeatRef]);
 
-    // -----------------------------------------------------------------------
-    // rAF loop: move OSMD cursor to the correct note based on exact audio time.
-    // Runs every animation frame during playback so sub-beat notes get the
-    // cursor even when the beat callback hasn't fired yet.
-    // -----------------------------------------------------------------------
     const cursorRafRef = useRef(null);
     const lastCursorNoteRef = useRef(-1);
 
@@ -310,10 +268,6 @@ function SongPage() {
 
     }, [isPlaying, isCountingIn, getElapsedBeats]);
 
-    // -----------------------------------------------------------------------
-    // Reset state when a new practice session STARTS (not when it stops),
-    // so the player can review colored noteheads after stopping.
-    // -----------------------------------------------------------------------
     const resetPracticeState = () => {
         setActiveNoteIndex(null);
         activeNoteIndexRef.current = null;
@@ -337,9 +291,6 @@ function SongPage() {
         start();
     };
 
-    // -----------------------------------------------------------------------
-    // Fetch song + parse notes
-    // -----------------------------------------------------------------------
     useEffect(() => {
 
         const fetchSong = async () => {
@@ -356,6 +307,12 @@ function SongPage() {
                         },
                     }
                 );
+
+                if (res.status === 401) {
+                    localStorage.removeItem("token");
+                    navigate("/login", { replace: true });
+                    return;
+                }
 
                 if (!res.ok) {
                     throw new Error("Failed to load song");
@@ -390,9 +347,6 @@ function SongPage() {
 
     }, [id]);
 
-    // -----------------------------------------------------------------------
-    // Render OSMD once song is loaded
-    // -----------------------------------------------------------------------
     useEffect(() => {
 
         if (!song || !containerRef.current) return;
@@ -413,7 +367,6 @@ function SongPage() {
 
                 osmdRef.current = osmd;
 
-                // Initialize cursor but keep it hidden until practice starts
                 osmd.cursor.show();
                 osmd.cursor.hide();
 
@@ -423,9 +376,6 @@ function SongPage() {
 
     }, [song]);
 
-    // -----------------------------------------------------------------------
-    // Derived display values
-    // -----------------------------------------------------------------------
     const activeNote =
         activeNoteIndex != null ? notes[activeNoteIndex] : null;
 
@@ -490,7 +440,7 @@ function SongPage() {
 
                 <div>
                     <div className="text-muted small">Mic</div>
-                    <div>{ready ? "✓" : "X"}</div>
+                    <div>{ready ? "✅" : "⏳"}</div>
                 </div>
 
                 <div>

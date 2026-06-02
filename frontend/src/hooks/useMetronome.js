@@ -16,10 +16,8 @@ export default function useMetronome() {
 
     const isPlayingRef = useRef(false);
 
-    // Absolute beat counter across the whole performance (post count-in)
     const performanceBeatRef = useRef(0);
 
-    // Callback fired on every quarter-note beat after count-in
     const onBeatRef = useRef(null);
 
     const [isPlaying, setIsPlaying] =
@@ -152,8 +150,7 @@ export default function useMetronome() {
                 secondsPerBeat /
                 getSubdivisionMultiplier();
 
-            // Fire onBeat callback only on quarter-note beats, after count-in
-            // We bridge audio time → wall time via a setTimeout
+
             const isQuarterBeat =
                 currentSubBeat.current %
                 getSubdivisionMultiplier() === 0;
@@ -234,8 +231,6 @@ export default function useMetronome() {
             );
     }
 
-    // Returns fractional performance beats elapsed since count-in ended.
-    // Returns null if not playing or still counting in.
     function getElapsedBeats() {
         if (
             !audioCtxRef.current ||
@@ -339,8 +334,6 @@ export default function useMetronome() {
 
         getElapsedBeats,
 
-        // Attach a callback to fire on every quarter-note beat after count-in.
-        // Receives beatIndex (0-based). Assign via: metronome.onBeatRef.current = fn
         onBeatRef,
     };
 }

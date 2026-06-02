@@ -64,28 +64,11 @@ function getText(element) {
         : null;
 }
 
-/**
- * Convert a raw MusicXML duration (in divisions) to beats as felt in the
- * given time signature.
- *
- * Simple time  (2/4, 3/4, 4/4, 2/2, etc.):
- *   1 beat = beatType note value
- *   durationBeats = (duration / divisions) * (beatType / 4)
- *   e.g. cut time 2/2, half note: duration=2, div=1, beatType=2
- *        → (2/1) * (2/4) = 1 beat ✓
- *
- * Compound time (6/8, 9/8, 12/8 — beats%3===0 AND beats!==3):
- *   1 beat = dotted beatType note = 1.5 × beatType note values
- *   durationBeats = (duration / divisions) * (beatType / 4) / 1.5
- *   e.g. 6/8, dotted quarter: duration=3, div=2, beatType=8
- *        → (3/2) * (8/4) / 1.5 = 1 beat ✓
- */
 function calcDurationBeats(duration, divisions, timeSignature) {
     const { beats, beatType } = timeSignature;
-    const quarterBeats = duration / divisions;          // duration in quarter notes
-    const simpleBeats = quarterBeats * (beatType / 4); // scale to this time sig's beat unit
+    const quarterBeats = duration / divisions;
+    const simpleBeats = quarterBeats * (beatType / 4); 
 
-    // Compound time: beats is a multiple of 3 (but not 3/x which is simple)
     const isCompound =
         beats % 3 === 0 && beats !== 3;
 

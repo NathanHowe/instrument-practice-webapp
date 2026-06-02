@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NavBar from "./components/Navbar.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 import './App.css'
 
@@ -19,7 +20,6 @@ function App() {
 
   const [theme, setTheme] = useState("dark");
 
-  // Apply theme to entire document
   useEffect(() => {
     document.documentElement.setAttribute("data-bs-theme", theme);
   }, [theme]);
@@ -28,42 +28,59 @@ function App() {
     setTheme(prev => (prev === "light" ? "dark" : "light"));
   };
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      setIsLoggedIn(true);
-    }
-  }, []);
+  // Initialize directly from localStorage — no useEffect flash
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => !!localStorage.getItem("token")
+  );
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     setIsLoggedIn(false);
+    // Navigation to /login is handled by ProtectedRoute on the next render
   };
- 
+
   return (
-
-    
     <BrowserRouter>
-      <NavBar theme={theme} toggleTheme={toggleTheme} isLoggedIn={isLoggedIn} onLogout={handleLogout} />
-
+      <NavBar
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isLoggedIn={isLoggedIn}
+        onLogout={handleLogout}
+      />
 
       <div className="container mt-4">
         <Routes>
+
+          {/* Root: redirect based on auth state */}
           <Route
             path="/"
-            element={<LoginPage setIsLoggedIn={setIsLoggedIn} />}
+            element={
+              isLoggedIn
+                ? <Navigate to="/my-music" replace />
+                : <Navigate to="/login" replace />
+            }
           />
+
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/home" element={<Home />} />
           <Route path="/metronome" element={<MetronomePage />} />
           <Route path="/tuner" element={<TunerPage />} />
           <Route path="/sight-reading" element={<SightReadingPage />} />
-          <Route path="/my-music" element={<MyMusicPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/songs/:id" element={<SongPage />} />
-          <Route path="/create-song" element={<CreateSongPage />} />
+
+          {/* Protected routes */}
+          <Route path="/my-music" element={
+            <ProtectedRoute><MyMusicPage /></ProtectedRoute>
+          } />
+          <Route path="/songs/:id" element={
+            <ProtectedRoute><SongPage /></ProtectedRoute>
+          } />
+          <Route path="/create-song" element={
+            <ProtectedRoute><CreateSongPage /></ProtectedRoute>
+          } />
+
         </Routes>
       </div>
     </BrowserRouter>

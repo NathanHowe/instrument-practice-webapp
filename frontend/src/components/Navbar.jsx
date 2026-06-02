@@ -18,9 +18,9 @@ const NavBar = ({ theme, toggleTheme, isLoggedIn, onLogout }) => {
                     <span className="navbar-toggler-icon"></span>
                 </button>
 
-               
 
-                <div className="collapse navbar-collapse" id="navbarNav">             
+
+                <div className="collapse navbar-collapse" id="navbarNav">
                     <ul className="navbar-nav me-auto">
                         <li className="nav-item">
                             <Link className="nav-link" to="/metronome">
@@ -61,7 +61,7 @@ const NavBar = ({ theme, toggleTheme, isLoggedIn, onLogout }) => {
                         {!isLoggedIn && (
                             <>
                                 <li className="nav-item">
-                                    <Link className="nav-link" to="/">Login</Link>
+                                    <Link className="nav-link" to="/login">Login</Link>
                                 </li>
                                 <li className="nav-item">
                                     <Link className="nav-link" to="/signup">Sign Up</Link>
@@ -71,7 +71,7 @@ const NavBar = ({ theme, toggleTheme, isLoggedIn, onLogout }) => {
 
                     </ul>
 
-                    
+
                     <button
                         className="btn btn-outline-secondary"
                         onClick={toggleTheme}

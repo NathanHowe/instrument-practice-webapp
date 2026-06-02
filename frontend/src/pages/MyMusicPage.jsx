@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 function MyMusicPage() {
   const [songs, setSongs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -13,17 +14,24 @@ function MyMusicPage() {
   const fetchSongs = async () => {
     const token = localStorage.getItem("token");
 
-    const response = await fetch(
-      "http://127.0.0.1:5000/api/songs/",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/songs/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const data = await response.json();
-    setSongs(data);
+      if (response.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const data = await response.json();
+      setSongs(data);
+    } catch (err) {
+      console.error("Failed to fetch songs:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,12 +45,19 @@ function MyMusicPage() {
         + New Song
       </button>
 
-
-      <div className="row justify-content-center g-4">
-        {songs.map((song) => (
-          <SongCard key={song.id} song={song} />
-        ))}
-      </div>
+      {loading ? (
+        <p className="text-muted">Loading...</p>
+      ) : songs.length === 0 ? (
+        <p className="text-muted">
+          No songs yet. Upload one to get started!
+        </p>
+      ) : (
+        <div className="row justify-content-center g-4">
+          {songs.map((song) => (
+            <SongCard key={song.id} song={song} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
