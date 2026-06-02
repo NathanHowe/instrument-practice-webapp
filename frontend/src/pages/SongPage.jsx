@@ -110,11 +110,14 @@ function SongPage() {
     const [correctNotes, setCorrectNotes] = useState(0);
     const [missedNotes, setMissedNotes] = useState(0);
 
-    // Best MIDI detected during current note's window
-    const bestMidiThisWindowRef = useRef(null);
+    // Best MIDI detected per note index during its window
+    const bestMidiPerNoteRef = useRef(new Map());
 
     // Track which note index was last judged so we don't double-judge
     const lastJudgedNoteIndexRef = useRef(-1);
+
+    // Track active note index as a ref too (for use inside frequency effect)
+    const activeNoteIndexRef = useRef(null);
 
     const {
         start,
@@ -125,7 +128,12 @@ function SongPage() {
         countInBeat,
         isCountingIn,
         onBeatRef,
+        getElapsedBeats,
     } = useMetronome();
+
+    // Stable ref to stop() so the beat callback closure never goes stale
+    const stopRef = useRef(stop);
+    useEffect(() => { stopRef.current = stop; }, [stop]);
 
     const {
         audioContext,
@@ -136,16 +144,19 @@ function SongPage() {
     const frequency = usePitchDetector(audioContext, source);
 
     // -----------------------------------------------------------------------
-    // Keep bestMidiThisWindow updated from latest frequency reading
+    // Keep bestMidiPerNote updated from latest frequency reading.
+    // Each sample is stored against whichever note is currently active.
+    // We keep only the most recent reading per note (hook is already smoothed).
     // -----------------------------------------------------------------------
     useEffect(() => {
         if (!isPlaying || isCountingIn || frequency == null) return;
 
         const midi = freqToMidi(frequency);
+        const idx = activeNoteIndexRef.current;
 
-        // Keep the reading closest to the expected note's pitch.
-        // Simple strategy: just keep the latest (hook is already smoothed).
-        bestMidiThisWindowRef.current = midi;
+        if (idx != null) {
+            bestMidiPerNoteRef.current.set(idx, midi);
+        }
 
     }, [frequency, isPlaying, isCountingIn]);
 
@@ -165,63 +176,80 @@ function SongPage() {
             if (!entry) return;
 
             const { noteIndex } = entry;
-            const note = notes[noteIndex];
 
-            // --- Advance cursor ---
-            if (osmdRef.current?.cursor) {
-                // Move cursor to match noteIndex
-                // OSMD cursor tracks its own position; we reset and step to match
-                // (simpler than trying to do delta moves across variable durations)
-                try {
-                    const cursor = osmdRef.current.cursor;
-                    cursor.reset();
-                    for (let i = 0; i < noteIndex; i++) {
-                        cursor.next();
-                    }
-                    cursor.show();
-                } catch (e) {
-                    // cursor may not be available on every build config
-                }
-            }
-
+            // Update both state (for display) and ref (for frequency sampling)
             setActiveNoteIndex(noteIndex);
+            activeNoteIndexRef.current = noteIndex;
 
-            // --- Judge the PREVIOUS note window ---
-            // We judge on the beat that ends a note's window, i.e. when we
-            // advance past it. So judge noteIndex - 1 (the one we just left).
-            const prevNoteIndex = noteIndex - 1;
+            // --- Judge ALL notes whose windows have closed since last beat ---
+            // This handles sub-beat notes (e.g. two quarter notes in one beat
+            // of cut time) that were skipped between beat ticks.
+            const firstUnjudged = lastJudgedNoteIndexRef.current + 1;
 
-            if (
-                prevNoteIndex >= 0 &&
-                prevNoteIndex !== lastJudgedNoteIndexRef.current
-            ) {
-                lastJudgedNoteIndexRef.current = prevNoteIndex;
-                const prevNote = notes[prevNoteIndex];
+            // Judge everything up to but not including the note now playing
+            for (let i = firstUnjudged; i < noteIndex; i++) {
+                const judgedNote = notes[i];
+                if (judgedNote.isRest) continue;
 
-                if (!prevNote.isRest) {
-                    const expectedMidi = musicXmlNoteToMidi(prevNote);
-                    const detectedMidi = bestMidiThisWindowRef.current;
+                const expectedMidi = musicXmlNoteToMidi(judgedNote);
+                const detectedMidi = bestMidiPerNoteRef.current.get(i) ?? null;
 
-                    const isCorrect =
-                        detectedMidi != null &&
-                        expectedMidi != null &&
-                        Math.abs(detectedMidi - expectedMidi) <= 1;
+                const isCorrect =
+                    detectedMidi != null &&
+                    expectedMidi != null &&
+                    Math.abs(detectedMidi - expectedMidi) <= 1;
 
-                    const color = isCorrect ? "#22c55e" : "#ef4444";
+                colorNotehead(containerRef.current, i, isCorrect ? "#22c55e" : "#ef4444");
 
-                    colorNotehead(containerRef.current, prevNoteIndex, color);
-
-                    if (isCorrect) {
-                        setCorrectNotes(prev => prev + 1);
-                    } else {
-                        setMissedNotes(prev => prev + 1);
-                    }
+                if (isCorrect) {
+                    setCorrectNotes(prev => prev + 1);
+                } else {
+                    setMissedNotes(prev => prev + 1);
                 }
             }
 
-            // Reset window tracker for new note
-            bestMidiThisWindowRef.current = null;
-        };
+            if (noteIndex > lastJudgedNoteIndexRef.current) {
+                lastJudgedNoteIndexRef.current = noteIndex - 1;
+            }
+
+            // --- End of song ---
+            // The last note's window has closed when beatIndex >= its endBeat.
+            const lastEntry = timeline[timeline.length - 1];
+            if (lastEntry && beatIndex >= lastEntry.endBeat) {
+                // Judge the final note if not yet judged
+                const lastIdx = lastEntry.noteIndex;
+                if (lastIdx > lastJudgedNoteIndexRef.current) {
+                    const lastNote = notes[lastIdx];
+                    if (!lastNote.isRest) {
+                        const expectedMidi = musicXmlNoteToMidi(lastNote);
+                        const detectedMidi =
+                            bestMidiPerNoteRef.current.get(lastIdx) ?? null;
+
+                        const isCorrect =
+                            detectedMidi != null &&
+                            expectedMidi != null &&
+                            Math.abs(detectedMidi - expectedMidi) <= 1;
+
+                        colorNotehead(
+                            containerRef.current,
+                            lastIdx,
+                            isCorrect ? "#22c55e" : "#ef4444"
+                        );
+
+                        if (isCorrect) {
+                            setCorrectNotes(prev => prev + 1);
+                        } else {
+                            setMissedNotes(prev => prev + 1);
+                        }
+
+                        lastJudgedNoteIndexRef.current = lastIdx;
+                    }
+                }
+
+                stopRef.current();
+            }
+
+        }; // end onBeatRef.current
 
         return () => {
             onBeatRef.current = null;
@@ -230,25 +258,84 @@ function SongPage() {
     }, [notes, onBeatRef]);
 
     // -----------------------------------------------------------------------
-    // Reset state when stopped
+    // rAF loop: move OSMD cursor to the correct note based on exact audio time.
+    // Runs every animation frame during playback so sub-beat notes get the
+    // cursor even when the beat callback hasn't fired yet.
     // -----------------------------------------------------------------------
-    useEffect(() => {
-        if (!isPlaying) {
-            setActiveNoteIndex(null);
-            bestMidiThisWindowRef.current = null;
-            lastJudgedNoteIndexRef.current = -1;
-            clearAllNoteColors(containerRef.current);
-            setCorrectNotes(0);
-            setMissedNotes(0);
+    const cursorRafRef = useRef(null);
+    const lastCursorNoteRef = useRef(-1);
 
-            if (osmdRef.current?.cursor) {
-                try {
-                    osmdRef.current.cursor.hide();
-                    osmdRef.current.cursor.reset();
-                } catch (e) { }
-            }
+    useEffect(() => {
+
+        if (!isPlaying || isCountingIn) {
+            cancelAnimationFrame(cursorRafRef.current);
+            return;
         }
-    }, [isPlaying]);
+
+        const timeline = timelineRef.current;
+        if (!timeline || timeline.length === 0) return;
+
+        function updateCursor() {
+            const elapsedBeats = getElapsedBeats();
+
+            if (elapsedBeats != null) {
+                const entry = findActiveEntry(timeline, elapsedBeats);
+
+                if (
+                    entry &&
+                    entry.noteIndex !== lastCursorNoteRef.current &&
+                    osmdRef.current?.cursor
+                ) {
+                    try {
+                        const cursor = osmdRef.current.cursor;
+                        cursor.reset();
+                        for (let i = 0; i < entry.noteIndex; i++) {
+                            cursor.next();
+                        }
+                        cursor.show();
+                        lastCursorNoteRef.current = entry.noteIndex;
+                    } catch (e) { }
+                }
+            }
+
+            cursorRafRef.current = requestAnimationFrame(updateCursor);
+        }
+
+        lastCursorNoteRef.current = -1;
+        cursorRafRef.current = requestAnimationFrame(updateCursor);
+
+        return () => {
+            cancelAnimationFrame(cursorRafRef.current);
+        };
+
+    }, [isPlaying, isCountingIn, getElapsedBeats]);
+
+    // -----------------------------------------------------------------------
+    // Reset state when a new practice session STARTS (not when it stops),
+    // so the player can review colored noteheads after stopping.
+    // -----------------------------------------------------------------------
+    const resetPracticeState = () => {
+        setActiveNoteIndex(null);
+        activeNoteIndexRef.current = null;
+        bestMidiPerNoteRef.current = new Map();
+        lastJudgedNoteIndexRef.current = -1;
+        lastCursorNoteRef.current = -1;
+        clearAllNoteColors(containerRef.current);
+        setCorrectNotes(0);
+        setMissedNotes(0);
+
+        if (osmdRef.current?.cursor) {
+            try {
+                osmdRef.current.cursor.hide();
+                osmdRef.current.cursor.reset();
+            } catch (e) { }
+        }
+    };
+
+    const handleStart = () => {
+        resetPracticeState();
+        start();
+    };
 
     // -----------------------------------------------------------------------
     // Fetch song + parse notes
@@ -366,7 +453,7 @@ function SongPage() {
 
                 <button
                     className="btn btn-primary"
-                    onClick={isPlaying ? stop : start}
+                    onClick={isPlaying ? stop : handleStart}
                 >
                     {isPlaying ? "Stop Practice" : "Start Practice"}
                 </button>
@@ -403,7 +490,7 @@ function SongPage() {
 
                 <div>
                     <div className="text-muted small">Mic</div>
-                    <div>{ready ? "✅" : "⏳"}</div>
+                    <div>{ready ? "✓" : "X"}</div>
                 </div>
 
                 <div>

@@ -234,6 +234,29 @@ export default function useMetronome() {
             );
     }
 
+    // Returns fractional performance beats elapsed since count-in ended.
+    // Returns null if not playing or still counting in.
+    function getElapsedBeats() {
+        if (
+            !audioCtxRef.current ||
+            !isPlayingRef.current
+        ) return null;
+
+        const elapsed =
+            audioCtxRef.current.currentTime -
+            startTimeRef.current;
+
+        const countInSeconds =
+            COUNT_IN_BEATS * (60.0 / bpm);
+
+        const performanceElapsed =
+            elapsed - countInSeconds;
+
+        if (performanceElapsed < 0) return null;
+
+        return performanceElapsed / (60.0 / bpm);
+    }
+
     async function start() {
 
         await initializeAudio();
@@ -313,6 +336,8 @@ export default function useMetronome() {
 
         countInBeat,
         isCountingIn,
+
+        getElapsedBeats,
 
         // Attach a callback to fire on every quarter-note beat after count-in.
         // Receives beatIndex (0-based). Assign via: metronome.onBeatRef.current = fn
