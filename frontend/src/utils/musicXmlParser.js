@@ -106,6 +106,8 @@ export function extractNotesFromParsedXML(parsed) {
 
     let currentKeySignature = 0;
 
+    let currentDivisions = 1;
+
     let currentTimeSignature = {
         beats: 4,
         beatType: 4,
@@ -121,6 +123,30 @@ export function extractNotesFromParsedXML(parsed) {
                 );
 
             if (attributes) {
+
+                const divisionsElement =
+                    getChild(
+                        attributes,
+                        "divisions"
+                    );
+
+                if (divisionsElement) {
+
+                    const divisionsVal =
+                        parseInt(
+                            getText(
+                                divisionsElement
+                            )
+                        );
+
+                    if (
+                        !isNaN(divisionsVal) &&
+                        divisionsVal > 0
+                    ) {
+                        currentDivisions =
+                            divisionsVal;
+                    }
+                }
 
                 const key =
                     getChild(
@@ -222,6 +248,9 @@ export function extractNotesFromParsedXML(parsed) {
                             octave: null,
                             alter: 0,
                             duration,
+                            durationBeats:
+                                duration /
+                                currentDivisions,
 
                             isRest: true,
 
@@ -294,6 +323,9 @@ export function extractNotesFromParsedXML(parsed) {
                         octave,
                         alter,
                         duration,
+                        durationBeats:
+                            duration /
+                            currentDivisions,
 
                         isRest: false,
 

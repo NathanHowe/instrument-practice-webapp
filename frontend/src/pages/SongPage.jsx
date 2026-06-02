@@ -26,39 +26,105 @@ import {
     musicXmlNoteToMidi,
 } from "../utils/noteUtils";
 
+// ---------------------------------------------------------------------------
+// Build a flat beat-timeline from the extracted notes.
+// Each entry: { noteIndex, startBeat, endBeat }
+// Rests are included so the beat clock stays aligned — we just don't judge them.
+// ---------------------------------------------------------------------------
+function buildBeatTimeline(notes) {
+    let cursor = 0;
+    return notes.map((note, i) => {
+        const durationBeats =
+            note.durationBeats ?? note.duration ?? 1;
+        const entry = {
+            noteIndex: i,
+            startBeat: cursor,
+            endBeat: cursor + durationBeats,
+        };
+        cursor += durationBeats;
+        return entry;
+    });
+}
+
+// Given the current performance beat, find which timeline entry is "active"
+function findActiveEntry(timeline, beatIndex) {
+    // The note whose window contains beatIndex
+    for (let i = timeline.length - 1; i >= 0; i--) {
+        if (timeline[i].startBeat <= beatIndex) {
+            return timeline[i];
+        }
+    }
+    return timeline[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Colour a notehead in the OSMD SVG by note index.
+// OSMD renders noteheads as <g class="vf-notehead"> elements in order.
+// We grab them all and index into the list.
+// ---------------------------------------------------------------------------
+function colorNotehead(containerEl, noteIndex, color) {
+    if (!containerEl) return;
+    // VexFlow noteheads: each notehead group
+    const heads = containerEl.querySelectorAll(
+        "g.vf-notehead path, g.vf-notehead use"
+    );
+    // OSMD may render one entry per notehead; for single-voice music this
+    // matches our noteIndex directly (rests also generate a glyph).
+    if (heads[noteIndex]) {
+        heads[noteIndex].style.fill = color;
+        heads[noteIndex].style.stroke = color;
+    }
+}
+
+function clearAllNoteColors(containerEl) {
+    if (!containerEl) return;
+    const heads = containerEl.querySelectorAll(
+        "g.vf-notehead path, g.vf-notehead use"
+    );
+    heads.forEach(el => {
+        el.style.fill = "";
+        el.style.stroke = "";
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 function SongPage() {
 
     const { id } = useParams();
 
     const containerRef = useRef(null);
+    const osmdRef = useRef(null);
 
     const [song, setSong] = useState(null);
     const [notes, setNotes] = useState([]);
 
-    const [currentNoteIndex,
-        setCurrentNoteIndex] =
-        useState(0);
+    // Beat-aligned timeline built from notes
+    const timelineRef = useRef([]);
 
-    const [correctNotes,
-        setCorrectNotes] =
-        useState(0);
+    // Current active note index (for display)
+    const [activeNoteIndex, setActiveNoteIndex] = useState(null);
 
-    const noteMatchedRef =
-        useRef(false);
+    // Score result counters
+    const [correctNotes, setCorrectNotes] = useState(0);
+    const [missedNotes, setMissedNotes] = useState(0);
 
-    const lastDetectedMidiRef =
-        useRef(null);
+    // Best MIDI detected during current note's window
+    const bestMidiThisWindowRef = useRef(null);
+
+    // Track which note index was last judged so we don't double-judge
+    const lastJudgedNoteIndexRef = useRef(-1);
 
     const {
         start,
         stop,
         isPlaying,
-
         bpm,
         setBpm,
-
         countInBeat,
         isCountingIn,
+        onBeatRef,
     } = useMetronome();
 
     const {
@@ -67,98 +133,169 @@ function SongPage() {
         ready,
     } = useMicrophone();
 
-    const frequency =
-        usePitchDetector(
-            audioContext,
-            source
-        );
+    const frequency = usePitchDetector(audioContext, source);
 
+    // -----------------------------------------------------------------------
+    // Keep bestMidiThisWindow updated from latest frequency reading
+    // -----------------------------------------------------------------------
+    useEffect(() => {
+        if (!isPlaying || isCountingIn || frequency == null) return;
+
+        const midi = freqToMidi(frequency);
+
+        // Keep the reading closest to the expected note's pitch.
+        // Simple strategy: just keep the latest (hook is already smoothed).
+        bestMidiThisWindowRef.current = midi;
+
+    }, [frequency, isPlaying, isCountingIn]);
+
+    // -----------------------------------------------------------------------
+    // Wire the beat callback once the timeline and OSMD are ready
+    // -----------------------------------------------------------------------
+    useEffect(() => {
+
+        if (notes.length === 0) return;
+
+        const timeline = buildBeatTimeline(notes);
+        timelineRef.current = timeline;
+
+        onBeatRef.current = (beatIndex) => {
+
+            const entry = findActiveEntry(timeline, beatIndex);
+            if (!entry) return;
+
+            const { noteIndex } = entry;
+            const note = notes[noteIndex];
+
+            // --- Advance cursor ---
+            if (osmdRef.current?.cursor) {
+                // Move cursor to match noteIndex
+                // OSMD cursor tracks its own position; we reset and step to match
+                // (simpler than trying to do delta moves across variable durations)
+                try {
+                    const cursor = osmdRef.current.cursor;
+                    cursor.reset();
+                    for (let i = 0; i < noteIndex; i++) {
+                        cursor.next();
+                    }
+                    cursor.show();
+                } catch (e) {
+                    // cursor may not be available on every build config
+                }
+            }
+
+            setActiveNoteIndex(noteIndex);
+
+            // --- Judge the PREVIOUS note window ---
+            // We judge on the beat that ends a note's window, i.e. when we
+            // advance past it. So judge noteIndex - 1 (the one we just left).
+            const prevNoteIndex = noteIndex - 1;
+
+            if (
+                prevNoteIndex >= 0 &&
+                prevNoteIndex !== lastJudgedNoteIndexRef.current
+            ) {
+                lastJudgedNoteIndexRef.current = prevNoteIndex;
+                const prevNote = notes[prevNoteIndex];
+
+                if (!prevNote.isRest) {
+                    const expectedMidi = musicXmlNoteToMidi(prevNote);
+                    const detectedMidi = bestMidiThisWindowRef.current;
+
+                    const isCorrect =
+                        detectedMidi != null &&
+                        expectedMidi != null &&
+                        Math.abs(detectedMidi - expectedMidi) <= 1;
+
+                    const color = isCorrect ? "#22c55e" : "#ef4444";
+
+                    colorNotehead(containerRef.current, prevNoteIndex, color);
+
+                    if (isCorrect) {
+                        setCorrectNotes(prev => prev + 1);
+                    } else {
+                        setMissedNotes(prev => prev + 1);
+                    }
+                }
+            }
+
+            // Reset window tracker for new note
+            bestMidiThisWindowRef.current = null;
+        };
+
+        return () => {
+            onBeatRef.current = null;
+        };
+
+    }, [notes, onBeatRef]);
+
+    // -----------------------------------------------------------------------
+    // Reset state when stopped
+    // -----------------------------------------------------------------------
+    useEffect(() => {
+        if (!isPlaying) {
+            setActiveNoteIndex(null);
+            bestMidiThisWindowRef.current = null;
+            lastJudgedNoteIndexRef.current = -1;
+            clearAllNoteColors(containerRef.current);
+            setCorrectNotes(0);
+            setMissedNotes(0);
+
+            if (osmdRef.current?.cursor) {
+                try {
+                    osmdRef.current.cursor.hide();
+                    osmdRef.current.cursor.reset();
+                } catch (e) { }
+            }
+        }
+    }, [isPlaying]);
+
+    // -----------------------------------------------------------------------
+    // Fetch song + parse notes
+    // -----------------------------------------------------------------------
     useEffect(() => {
 
         const fetchSong = async () => {
 
             try {
 
-                const token =
-                    localStorage.getItem("token");
+                const token = localStorage.getItem("token");
 
                 const res = await fetch(
                     `http://127.0.0.1:5000/api/songs/${id}`,
                     {
                         headers: {
-                            Authorization:
-                                `Bearer ${token}`,
+                            Authorization: `Bearer ${token}`,
                         },
                     }
                 );
 
                 if (!res.ok) {
-                    throw new Error(
-                        "Failed to load song"
-                    );
+                    throw new Error("Failed to load song");
                 }
 
-                const data =
-                    await res.json();
+                const data = await res.json();
+                const xmlText = data.content;
 
-                const xmlText =
-                    data.content;
-
-                console.log(
-                    "First 500 chars of XML:"
-                );
-
-                console.log(
-                    xmlText.substring(
-                        0,
-                        500
-                    )
-                );
-
-                const parsed =
-                    xml2js(
-                        xmlText,
-                        {
-                            compact: false,
-                            spaces: 2,
-                        }
-                    );
-
-                console.log(
-                    "FULL PARSED XML:",
-                    parsed
-                );
+                const parsed = xml2js(xmlText, {
+                    compact: false,
+                    spaces: 2,
+                });
 
                 const extractedNotes =
-                    extractNotesFromParsedXML(
-                        parsed
-                    );
+                    extractNotesFromParsedXML(parsed);
 
+                console.log("Extracted notes:", extractedNotes);
                 console.log(
-                    "Extracted notes:",
-                    extractedNotes
+                    "Duration beats sample:",
+                    extractedNotes.slice(0, 5).map(n => n.durationBeats)
                 );
 
-                console.log(
-                    "First 10 notes:",
-                    extractedNotes.slice(
-                        0,
-                        10
-                    )
-                );
-
-                setNotes(
-                    extractedNotes
-                );
-
+                setNotes(extractedNotes);
                 setSong(data);
 
             } catch (err) {
-
-                console.error(
-                    "Error loading song:",
-                    err
-                );
+                console.error("Error loading song:", err);
             }
         };
 
@@ -166,277 +303,147 @@ function SongPage() {
 
     }, [id]);
 
+    // -----------------------------------------------------------------------
+    // Render OSMD once song is loaded
+    // -----------------------------------------------------------------------
     useEffect(() => {
 
-        if (
-            !song ||
-            !containerRef.current
-        ) {
-            return;
-        }
+        if (!song || !containerRef.current) return;
 
-        const osmd =
-            new OpenSheetMusicDisplay(
-                containerRef.current,
-                {
-                    autoResize: true,
-                    backend: "svg",
-                    drawingParameters:
-                        "default",
-
-                    stretchLastSystemLine:
-                        true,
-
-                    noteheadScaling: 1.2,
-                }
-            );
+        const osmd = new OpenSheetMusicDisplay(containerRef.current, {
+            autoResize: true,
+            backend: "svg",
+            drawingParameters: "default",
+            stretchLastSystemLine: true,
+            noteheadScaling: 1.2,
+        });
 
         osmd.load(song.content)
             .then(() => {
-
-                osmd.EngravingRules
-                    .SoftMaxMeasureWidth =
-                    1200;
-
+                osmd.EngravingRules.SoftMaxMeasureWidth = 1200;
                 osmd.zoom = 0.75;
-
                 osmd.render();
 
-                console.log(
-                    "OSMD rendered successfully"
-                );
+                osmdRef.current = osmd;
+
+                // Initialize cursor but keep it hidden until practice starts
+                osmd.cursor.show();
+                osmd.cursor.hide();
+
+                console.log("OSMD rendered successfully");
             })
-            .catch(err =>
-                console.error(
-                    "OSMD load error:",
-                    err
-                )
-            );
+            .catch(err => console.error("OSMD load error:", err));
 
     }, [song]);
 
-    useEffect(() => {
+    // -----------------------------------------------------------------------
+    // Derived display values
+    // -----------------------------------------------------------------------
+    const activeNote =
+        activeNoteIndex != null ? notes[activeNoteIndex] : null;
 
-        if (
-            !isPlaying ||
-            isCountingIn ||
-            !frequency ||
-            notes.length === 0
-        ) {
-            noteMatchedRef.current = false;
-            return;
-        }
+    const expectedLabel = activeNote
+        ? activeNote.isRest
+            ? "Rest"
+            : `${activeNote.step}${activeNote.alter === 1
+                ? "#"
+                : activeNote.alter === -1
+                    ? "b"
+                    : ""
+            }${activeNote.octave}`
+        : "—";
 
-        let noteIndex =
-            currentNoteIndex;
-
-        while (
-            noteIndex < notes.length &&
-            notes[noteIndex].isRest
-        ) {
-
-            console.log(
-                "Skipping rest"
-            );
-
-            noteIndex++;
-        }
-
-        if (
-            noteIndex !== currentNoteIndex
-        ) {
-
-            setCurrentNoteIndex(
-                noteIndex
-            );
-
-            return;
-        }
-
-        const expectedNote =
-            notes[noteIndex];
-
-        if (!expectedNote) {
-            return;
-        }
-
-        const detectedMidi =
-            freqToMidi(frequency);
-
-        const expectedMidi =
-            musicXmlNoteToMidi(
-                expectedNote
-            );
-
-        if (expectedMidi == null) {
-            return;
-        }
-
-        const difference =
-            Math.abs(
-                detectedMidi -
-                expectedMidi
-            );
-
-        if (
-            difference <= 1 &&
-            !noteMatchedRef.current
-        ) {
-
-            console.log(
-                "Correct note!",
-                expectedNote
-            );
-
-            noteMatchedRef.current =
-                true;
-
-            setCorrectNotes(
-                prev => prev + 1
-            );
-
-            setCurrentNoteIndex(
-                prev => prev + 1
-            );
-        }
-
-        if (difference > 1) {
-            noteMatchedRef.current =
-                false;
-        }
-
-        lastDetectedMidiRef.current =
-            detectedMidi;
-
-    }, [
-        frequency,
-        currentNoteIndex,
-        notes,
-        isPlaying,
-        isCountingIn
-    ]);
+    const totalJudged = correctNotes + missedNotes;
+    const accuracy = totalJudged > 0
+        ? Math.round((correctNotes / totalJudged) * 100)
+        : null;
 
     return (
         <div className="container-fluid mt-4">
 
+            {/* Controls */}
             <div className="text-center mb-4">
 
                 <button
                     className="btn btn-primary"
-                    onClick={
-                        isPlaying
-                            ? stop
-                            : start
-                    }
+                    onClick={isPlaying ? stop : start}
                 >
-                    {
-                        isPlaying
-                            ? "Stop Practice"
-                            : "Start Practice"
-                    }
+                    {isPlaying ? "Stop Practice" : "Start Practice"}
                 </button>
 
-                <div className="mt-3">
-
-                    <label className="form-label">
-                        BPM
-                    </label>
-
+                <div className="mt-3 d-flex align-items-center justify-content-center gap-2">
+                    <label className="form-label mb-0">BPM</label>
                     <input
                         type="number"
-                        className="form-control w-auto mx-auto"
+                        className="form-control w-auto"
                         value={bpm}
-                        onChange={(e) =>
-                            setBpm(
-                                Number(
-                                    e.target.value
-                                )
-                            )
-                        }
+                        onChange={(e) => setBpm(Number(e.target.value))}
                     />
-
                 </div>
 
-                {isCountingIn &&
-                    countInBeat < 8 && (
-                        <h1 className="mt-4">
-                            {8 -
-                                countInBeat}
+                {/* Count-in display */}
+                {isCountingIn && countInBeat < 8 && (
+                    <div className="mt-4">
+                        <h1 style={{ fontSize: "6rem", fontWeight: "bold" }}>
+                            {8 - countInBeat}
                         </h1>
-                    )}
+                        <p className="text-muted">Get ready…</p>
+                    </div>
+                )}
 
-                {isPlaying &&
-                    !isCountingIn && (
-                        <h2 className="mt-4 text-success">
-                            PLAY
-                        </h2>
-                    )}
-
-            </div>
-
-            <div className="mt-3">
-
-                <p>
-                    Mic Ready:
-                    {" "}
-                    {ready ? "Yes" : "No"}
-                </p>
-
-                <p>
-                    Frequency:
-                    {" "}
-                    {
-                        frequency
-                            ? frequency.toFixed(1)
-                            : "---"
-                    }
-                    {" "}Hz
-                </p>
-
-                <p>
-                    Current Note:
-                    {" "}
-                    {currentNoteIndex + 1}
-                    {" / "}
-                    {notes.length}
-                </p>
-
-                <p>
-                    Correct Notes:
-                    {" "}
-                    {correctNotes}
-                </p>
-
-                {
-                    notes[currentNoteIndex] && (
-                        <p>
-                            Expected:
-                            {" "}
-                            {
-                                notes[currentNoteIndex]
-                                    .isRest
-                                    ? "Rest"
-                                    : `${notes[currentNoteIndex].step}${notes[currentNoteIndex].alter === 1
-                                        ? "#"
-                                        : notes[currentNoteIndex].alter === -1
-                                            ? "b"
-                                            : ""
-                                    }${notes[currentNoteIndex].octave}`
-                            }
-                        </p>
-                    )
-                }
+                {/* Playing indicator */}
+                {isPlaying && !isCountingIn && (
+                    <h2 className="mt-3 text-success">♩ PLAY</h2>
+                )}
 
             </div>
 
+            {/* Stats */}
+            <div className="d-flex gap-4 justify-content-center mb-3 text-center">
+
+                <div>
+                    <div className="text-muted small">Mic</div>
+                    <div>{ready ? "✅" : "⏳"}</div>
+                </div>
+
+                <div>
+                    <div className="text-muted small">Frequency</div>
+                    <div>
+                        {frequency ? `${frequency.toFixed(1)} Hz` : "—"}
+                    </div>
+                </div>
+
+                <div>
+                    <div className="text-muted small">Expected</div>
+                    <div>{expectedLabel}</div>
+                </div>
+
+                <div>
+                    <div className="text-muted small">Correct</div>
+                    <div className="text-success fw-bold">{correctNotes}</div>
+                </div>
+
+                <div>
+                    <div className="text-muted small">Missed</div>
+                    <div className="text-danger fw-bold">{missedNotes}</div>
+                </div>
+
+                {accuracy != null && (
+                    <div>
+                        <div className="text-muted small">Accuracy</div>
+                        <div className="fw-bold">{accuracy}%</div>
+                    </div>
+                )}
+
+            </div>
+
+            {/* Score */}
             <div
                 className="score-container"
                 ref={containerRef}
                 style={{
-                    width:
-                        "min(1200px, 90vw)",
-                    minHeight:
-                        "400px",
+                    width: "min(1200px, 90vw)",
+                    minHeight: "400px",
                     margin: "0 auto",
                 }}
             />
